@@ -21,7 +21,7 @@ function initChart() {
         options: {
             plugins: {
                 legend: {
-                    display: false
+                    display: false 
                 }
             },
             scales: {
@@ -135,3 +135,64 @@ window.onload = () => {
     const interval = document.getElementById('time-interval').value;
     openWebSocket(coin, interval);
 };
+
+// 1. Save data in localStorage
+function saveChartData(coin, data) {
+    localStorage.setItem(coin, JSON.stringify(data));
+}
+
+// 2. Retrieve data from localStorage
+function getStoredChartData(coin) {
+    const storedData = localStorage.getItem(coin);
+    return storedData ? JSON.parse(storedData) : [];
+}
+
+// 3. Update the chart with stored data
+function updateChartWithStoredData(coin) {
+    const storedData = getStoredChartData(coin);
+    if (storedData.length > 0) {
+        chart.data.datasets[0].data = storedData;
+        chart.update();
+    }
+}
+
+// 4. Handle new WebSocket data
+function handleNewWebSocketData(coin, newData) {
+    let currentData = getStoredChartData(coin);
+    currentData.push(newData);
+
+    // Limit the stored data to the most recent 100 candles (optional)
+    if (currentData.length > 100) {
+        currentData.shift();
+    }
+
+    saveChartData(coin, currentData);
+
+    // Update the chart with new data
+    chart.data.datasets[0].data = currentData;
+    chart.update();
+}
+
+// 5. Switch between coins and update chart
+function switchCoin(coin) {
+    // Fetch historical data for the new coin
+    updateChartWithStoredData(coin);
+
+    // Re-establish WebSocket connection for real-time updates
+    connectWebSocketForCoin(coin);
+}
+
+// 6. WebSocket connection for selected coin
+function connectWebSocketForCoin(coin) {
+    const wsURL = getWebSocketURL(coin, '1m'); // Adjust interval if needed
+    const ws = new WebSocket(wsURL);
+
+    ws.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        const candlestickData = transformToCandlestickFormat(data); // Transform WebSocket data
+        
+        // Handle new data for the active coin
+        handleNewWebSocketData(coin, candlestickData);
+    };
+}
+
